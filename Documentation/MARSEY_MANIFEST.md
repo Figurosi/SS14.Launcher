@@ -1,6 +1,6 @@
 # Marsey mod manifest
 
-Each mod is stored in its own direct child directory under the launcher Marsey mod directory and must contain:
+A mod package can be stored directly in the launcher Marsey mod directory or in one of its direct child directories. Each package must contain:
 
 - `marsey.json` — declarative metadata;
 - the entry assembly named by `entryAssembly`.
@@ -30,6 +30,8 @@ The initial migration stage validates and catalogs these files but does not exec
 }
 ```
 
+Property names are case-sensitive and use the exact camel-case spelling shown above. Unknown properties and duplicate top-level properties are rejected instead of being silently ignored.
+
 ## Fields
 
 ### `id`
@@ -38,7 +40,7 @@ Required stable identifier. It must be 3–128 characters and contain only lower
 
 ### `name`
 
-Required display name, at most 128 characters. Control characters are rejected.
+Required display name, at most 128 characters. Whitespace-only values and control characters are rejected.
 
 ### `version`
 
@@ -50,11 +52,11 @@ Required positive integer. The first safe catalog API is version `1`. A mod with
 
 ### `entryAssembly`
 
-Required `.dll` file name in the same directory as `marsey.json`. Paths, absolute names, `..`, directory separators, drive prefixes, and symbolic links/reparse points are rejected.
+Required `.dll` file name in the same directory as `marsey.json`. Paths, absolute names, `..`, directory separators, drive prefixes, invalid platform file-name characters, and symbolic links/reparse points are rejected.
 
 ### `entryType`
 
-Required fully qualified entry-point type name, at most 512 characters. The current migration stage stores this value but does not instantiate it.
+Required fully qualified entry-point type name, at most 512 characters. Whitespace-only values and control characters are rejected. The current migration stage stores this value but does not instantiate it.
 
 ### `minimumLauncherVersion`
 
@@ -91,7 +93,7 @@ The launcher checks:
 1. `marsey.json` directly inside the configured mod root, if present;
 2. `marsey.json` inside each direct child directory.
 
-Discovery is deliberately not recursive. Mod directories, manifests, and entry assemblies that are symbolic links or reparse points are rejected. Manifest files are limited to 256 KiB. Unknown fields are rejected to catch spelling mistakes and unsupported metadata early.
+Discovery is deliberately not recursive. The mod root, child mod directories, manifests, and entry assemblies are rejected when they are symbolic links or reparse points. Manifest files are limited to 256 KiB, JSON nesting is limited to 16 levels, and malformed or ambiguous metadata is rejected before any assembly inspection beyond file existence and attributes.
 
 ## Trust model
 
