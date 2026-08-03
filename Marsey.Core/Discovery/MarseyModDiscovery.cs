@@ -52,6 +52,16 @@ public sealed class MarseyModDiscovery
 
         var candidates = new List<MarseyModCandidate>();
         var issues = new List<MarseyDiscoveryIssue>();
+
+        if (IsReparsePoint(
+                rootPath,
+                "mod-root-reparse-point",
+                "The mod root directory cannot be a symbolic link or reparse point.",
+                issues))
+        {
+            return new MarseyDiscoveryResult(candidates, issues);
+        }
+
         var manifests = FindManifestPaths(rootPath, issues);
         var discoveredIds = new HashSet<string>(StringComparer.Ordinal);
 
