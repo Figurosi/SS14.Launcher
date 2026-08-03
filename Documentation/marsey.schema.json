@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/ss14-launcher/marsey.schema.json",
+  "$id": "https://raw.githubusercontent.com/Figurosi/SS14.Launcher/master/Documentation/marsey.schema.json",
   "title": "Marsey mod manifest",
   "type": "object",
   "additionalProperties": false,
