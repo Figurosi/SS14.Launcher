@@ -15,6 +15,7 @@ namespace Marsey.Core.Manifests;
 public sealed class MarseyManifestReader
 {
     public const int MaximumManifestBytes = 256 * 1024;
+    private const int MaximumJsonDepth = 16;
 
     private static readonly Regex IdentifierPattern = new(
         "^[a-z0-9][a-z0-9._-]{2,127}$",
@@ -23,15 +24,26 @@ public sealed class MarseyManifestReader
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         AllowTrailingCommas = true,
-        PropertyNameCaseInsensitive = true,
+        PropertyNameCaseInsensitive = false,
         ReadCommentHandling = JsonCommentHandling.Skip,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        MaxDepth = MaximumJsonDepth,
         Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
+    };
+
+    private static readonly JsonDocumentOptions DocumentOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling = JsonCommentHandling.Skip,
+        MaxDepth = MaximumJsonDepth
     };
 
     public MarseyManifestReadResult Read(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
+
+        if (!stream.CanRead)
+            return Invalid("manifest-not-readable", "The manifest stream is not readable.");
 
         using var boundedData = ReadBounded(stream);
         if (boundedData is null)
@@ -40,6 +52,10 @@ public sealed class MarseyManifestReader
                 "manifest-too-large",
                 $"The manifest exceeds the {MaximumManifestBytes}-byte size limit.");
         }
+
+        var shapeIssue = ValidateJsonShape(boundedData);
+        if (shapeIssue is not null)
+            return new MarseyManifestReadResult(null, new[] { shapeIssue });
 
         ManifestDocument? document;
         try
@@ -63,8 +79,14 @@ public sealed class MarseyManifestReader
         if (!Version.TryParse(document.Version, out var version))
             issues.Add(new MarseyManifestIssue("invalid-version", "version must be a valid dotted version."));
 
-        if (document.ApiVersion <= 0)
+        if (document.ApiVersion is null)
+        {
+            issues.Add(new MarseyManifestIssue("missing-field", "apiVersion is required."));
+        }
+        else if (document.ApiVersion <= 0)
+        {
             issues.Add(new MarseyManifestIssue("invalid-api-version", "apiVersion must be greater than zero."));
+        }
 
         ValidateEntryAssembly(document.EntryAssembly, issues);
 
@@ -105,14 +127,14 @@ public sealed class MarseyManifestReader
                 $"'{dependency}' cannot be both a dependency and a conflict."));
         }
 
-        if (issues.Count > 0 || version is null)
+        if (issues.Count > 0 || version is null || document.ApiVersion is null)
             return new MarseyManifestReadResult(null, issues);
 
         var manifest = new MarseyModManifest(
             document.Id!,
             document.Name!,
             version,
-            document.ApiVersion,
+            document.ApiVersion.Value,
             document.EntryAssembly!,
             document.EntryType!,
             minimumLauncherVersion,
@@ -122,6 +144,41 @@ public sealed class MarseyManifestReader
             conflicts);
 
         return new MarseyManifestReadResult(manifest, Array.Empty<MarseyManifestIssue>());
+    }
+
+    private static MarseyManifestIssue? ValidateJsonShape(MemoryStream data)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(data, DocumentOptions);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return new MarseyManifestIssue(
+                    "invalid-json-root",
+                    "The manifest root must be a JSON object.");
+            }
+
+            var propertyNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!propertyNames.Add(property.Name))
+                {
+                    return new MarseyManifestIssue(
+                        "duplicate-property",
+                        $"The manifest contains duplicate property '{property.Name}'.");
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException exception)
+        {
+            return new MarseyManifestIssue("invalid-json", exception.Message);
+        }
+        finally
+        {
+            data.Position = 0;
+        }
     }
 
     private static MemoryStream? ReadBounded(Stream stream)
@@ -293,7 +350,7 @@ public sealed class MarseyManifestReader
         public string? Id { get; init; }
         public string? Name { get; init; }
         public string? Version { get; init; }
-        public int ApiVersion { get; init; }
+        public int? ApiVersion { get; init; }
         public string? EntryAssembly { get; init; }
         public string? EntryType { get; init; }
         public string? MinimumLauncherVersion { get; init; }
