@@ -11,7 +11,7 @@ The initial migration stage validates and catalogs these files but does not exec
 
 ```json
 {
-  "$schema": "../marsey.schema.json",
+  "$schema": "https://raw.githubusercontent.com/Figurosi/SS14.Launcher/master/Documentation/marsey.schema.json",
   "id": "community.example-mod",
   "name": "Example Mod",
   "version": "1.2.3",
@@ -91,7 +91,7 @@ The launcher checks:
 1. `marsey.json` directly inside the configured mod root, if present;
 2. `marsey.json` inside each direct child directory.
 
-Discovery is deliberately not recursive. Mod directories, manifests, and entry assemblies that are symbolic links or reparse points are rejected. Manifest files are limited to 256 KiB.
+Discovery is deliberately not recursive. Mod directories, manifests, and entry assemblies that are symbolic links or reparse points are rejected. Manifest files are limited to 256 KiB. Unknown fields are rejected to catch spelling mistakes and unsupported metadata early.
 
 ## Trust model
 
