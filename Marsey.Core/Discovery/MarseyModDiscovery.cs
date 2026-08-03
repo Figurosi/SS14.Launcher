@@ -57,6 +57,15 @@ public sealed class MarseyModDiscovery
 
         foreach (var manifestPath in manifests)
         {
+            if (IsReparsePoint(
+                    manifestPath,
+                    "manifest-reparse-point",
+                    "Manifest files cannot be symbolic links or reparse points.",
+                    issues))
+            {
+                continue;
+            }
+
             MarseyManifestReadResult readResult;
             try
             {
@@ -83,7 +92,20 @@ public sealed class MarseyModDiscovery
 
             var manifest = readResult.Manifest;
             var modDirectory = Path.GetDirectoryName(manifestPath)!;
-            var entryAssemblyPath = Path.GetFullPath(Path.Combine(modDirectory, manifest.EntryAssembly));
+
+            string entryAssemblyPath;
+            try
+            {
+                entryAssemblyPath = Path.GetFullPath(Path.Combine(modDirectory, manifest.EntryAssembly));
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                issues.Add(new MarseyDiscoveryIssue(
+                    manifestPath,
+                    "entry-assembly-path-invalid",
+                    exception.Message));
+                continue;
+            }
 
             if (!IsInsideDirectory(modDirectory, entryAssemblyPath))
             {
@@ -103,23 +125,12 @@ public sealed class MarseyModDiscovery
                 continue;
             }
 
-            try
-            {
-                if ((File.GetAttributes(entryAssemblyPath) & FileAttributes.ReparsePoint) != 0)
-                {
-                    issues.Add(new MarseyDiscoveryIssue(
-                        manifestPath,
-                        "entry-assembly-reparse-point",
-                        "Entry assemblies cannot be symbolic links or reparse points."));
-                    continue;
-                }
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                issues.Add(new MarseyDiscoveryIssue(
+            if (IsReparsePoint(
                     entryAssemblyPath,
-                    "entry-assembly-inspection-failed",
-                    exception.Message));
+                    "entry-assembly-reparse-point",
+                    "Entry assemblies cannot be symbolic links or reparse points.",
+                    issues))
+            {
                 continue;
             }
 
@@ -157,23 +168,12 @@ public sealed class MarseyModDiscovery
         {
             foreach (var directory in Directory.EnumerateDirectories(rootPath).OrderBy(path => path, StringComparer.Ordinal))
             {
-                try
-                {
-                    if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
-                    {
-                        issues.Add(new MarseyDiscoveryIssue(
-                            directory,
-                            "mod-directory-reparse-point",
-                            "Mod directories cannot be symbolic links or reparse points."));
-                        continue;
-                    }
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    issues.Add(new MarseyDiscoveryIssue(
+                if (IsReparsePoint(
                         directory,
-                        "mod-directory-inspection-failed",
-                        exception.Message));
+                        "mod-directory-reparse-point",
+                        "Mod directories cannot be symbolic links or reparse points.",
+                        issues))
+                {
                     continue;
                 }
 
@@ -189,6 +189,27 @@ public sealed class MarseyModDiscovery
 
         manifestPaths.Sort(StringComparer.Ordinal);
         return manifestPaths;
+    }
+
+    private static bool IsReparsePoint(
+        string path,
+        string issueCode,
+        string issueMessage,
+        ICollection<MarseyDiscoveryIssue> issues)
+    {
+        try
+        {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0)
+                return false;
+
+            issues.Add(new MarseyDiscoveryIssue(path, issueCode, issueMessage));
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            issues.Add(new MarseyDiscoveryIssue(path, "file-inspection-failed", exception.Message));
+            return true;
+        }
     }
 
     private static bool IsInsideDirectory(string directory, string path)
