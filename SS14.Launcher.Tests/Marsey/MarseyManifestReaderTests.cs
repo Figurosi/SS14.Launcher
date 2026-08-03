@@ -149,6 +149,70 @@ public sealed class MarseyManifestReaderTests
     }
 
     [Test]
+    public void RejectsIncorrectPropertyCasing()
+    {
+        var result = Read(
+            """
+            {
+              "Id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsDuplicateProperties()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.first-mod",
+              "id": "community.second-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "duplicate-property"), Is.True);
+    }
+
+    [Test]
+    public void RejectsNonObjectRoot()
+    {
+        var result = Read("[]");
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json-root"), Is.True);
+    }
+
+    [Test]
+    public void ReportsMissingApiVersion()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(
+            result.Issues.Any(issue => issue.Code == "missing-field" && issue.Message == "apiVersion is required."),
+            Is.True);
+    }
+
+    [Test]
     public void RejectsControlCharactersInDisplayText()
     {
         var result = Read(
