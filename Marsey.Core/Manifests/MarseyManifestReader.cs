@@ -24,6 +24,7 @@ public sealed class MarseyManifestReader
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         AllowTrailingCommas = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = false,
         ReadCommentHandling = JsonCommentHandling.Skip,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
