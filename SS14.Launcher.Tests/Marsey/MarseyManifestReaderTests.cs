@@ -99,6 +99,53 @@ public sealed class MarseyManifestReaderTests
         Assert.That(result.Issues.Any(issue => issue.Code == "dependency-conflict-overlap"), Is.True);
     }
 
+    [Test]
+    public void RejectsOversizedManifest()
+    {
+        using var stream = new MemoryStream(new byte[MarseyManifestReader.MaximumManifestBytes + 1]);
+
+        var result = _reader.Read(stream);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "manifest-too-large"), Is.True);
+    }
+
+    [Test]
+    public void RejectsNumericLoadPhase()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "loadPhase": 1
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsControlCharactersInDisplayText()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Bad\u0001Name",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "control-character"), Is.True);
+    }
+
     [TestCase(1, "0.39.1", MarseyCompatibilityStatus.Compatible)]
     [TestCase(2, "0.39.1", MarseyCompatibilityStatus.UnsupportedApiVersion)]
     [TestCase(1, "0.39.0", MarseyCompatibilityStatus.LauncherTooOld)]
