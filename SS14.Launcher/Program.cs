@@ -14,6 +14,7 @@ using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
 using Splat;
 using SS14.Launcher.Api;
+using SS14.Launcher.Extensibility;
 using SS14.Launcher.Localization;
 using SS14.Launcher.Models;
 using SS14.Launcher.Models.ContentManagement;
@@ -210,6 +211,7 @@ internal static class Program
     private static AppBuilder BuildAvaloniaApp(DataManager cfg)
     {
         var locator = Locator.CurrentMutable;
+        locator.RegisterConstant(new LauncherExtensionHost());
 
         var http = HappyEyeballsHttp.CreateHttpClient();
         http.DefaultRequestHeaders.UserAgent.Add(
