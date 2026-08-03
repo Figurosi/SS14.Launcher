@@ -78,6 +78,49 @@ public sealed class LauncherExtensionHostTests
     }
 
     [Test]
+    public void RejectsShutdownReentryDuringInitialization()
+    {
+        var events = new List<string>();
+        var host = new LauncherExtensionHost();
+
+        host.Register(new CallbackExtension("reentrant", host.ShutdownAll));
+        host.Register(new TestExtension("healthy", events));
+
+        host.InitializeAll();
+        host.ShutdownAll();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(host.Extensions[0].State, Is.EqualTo(LauncherExtensionState.InitializationFailed));
+            Assert.That(host.Extensions[0].Error, Is.TypeOf<InvalidOperationException>());
+            Assert.That(host.Extensions[1].State, Is.EqualTo(LauncherExtensionState.Stopped));
+            Assert.That(events, Is.EqualTo(new[]
+            {
+                "initialize:healthy",
+                "shutdown:healthy"
+            }));
+        });
+    }
+
+    [Test]
+    public void InitializationIsIdempotentAfterCompletion()
+    {
+        var events = new List<string>();
+        var host = new LauncherExtensionHost();
+        host.Register(new TestExtension("extension", events));
+
+        host.InitializeAll();
+        host.InitializeAll();
+        host.ShutdownAll();
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            "initialize:extension",
+            "shutdown:extension"
+        }));
+    }
+
+    [Test]
     public void ShutdownIsIdempotent()
     {
         var events = new List<string>();
@@ -123,6 +166,20 @@ public sealed class LauncherExtensionHostTests
         public void Shutdown()
         {
             _events?.Add($"shutdown:{Id}");
+        }
+    }
+
+    private sealed class CallbackExtension(string id, Action initialize) : ILauncherExtension
+    {
+        public string Id { get; } = id;
+
+        public void Initialize()
+        {
+            initialize();
+        }
+
+        public void Shutdown()
+        {
         }
     }
 }
