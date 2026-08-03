@@ -68,7 +68,7 @@ public sealed class MarseyManifestReader
 
         if (minimumLauncherVersion is not null &&
             maximumLauncherVersionExclusive is not null &&
-            minimumLauncherVersion >= maximumLauncherVersionExclusive)
+            minimumLauncherVersion.CompareTo(maximumLauncherVersionExclusive) >= 0)
         {
             issues.Add(new MarseyManifestIssue(
                 "invalid-launcher-range",
@@ -167,11 +167,12 @@ public sealed class MarseyManifestReader
             entryAssembly.Contains('/') ||
             entryAssembly.Contains('\\') ||
             entryAssembly.Contains(':') ||
+            entryAssembly.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
             Path.GetFileName(entryAssembly) != entryAssembly)
         {
             issues.Add(new MarseyManifestIssue(
                 "invalid-entry-assembly-path",
-                "entryAssembly must be a file name inside the mod directory, not a path."));
+                "entryAssembly must be a valid file name inside the mod directory, not a path."));
             return;
         }
 
