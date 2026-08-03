@@ -18,8 +18,7 @@ public sealed class LauncherExtensionHost
     private readonly object _lock = new();
     private readonly List<ExtensionEntry> _extensions = new();
 
-    private bool _initialized;
-    private bool _shutdown;
+    private HostState _state = HostState.Registering;
 
     /// <summary>
     /// Returns a point-in-time diagnostic snapshot of registered extensions.
@@ -49,7 +48,7 @@ public sealed class LauncherExtensionHost
 
         lock (_lock)
         {
-            if (_initialized || _shutdown)
+            if (_state != HostState.Registering)
                 throw new InvalidOperationException("Launcher extensions can only be registered before initialization.");
 
             if (_extensions.Any(entry => string.Equals(entry.Extension.Id, extension.Id, StringComparison.Ordinal)))
@@ -68,14 +67,22 @@ public sealed class LauncherExtensionHost
 
         lock (_lock)
         {
-            if (_shutdown)
-                throw new InvalidOperationException("Launcher extension host has already been shut down.");
-
-            if (_initialized)
-                return;
-
-            _initialized = true;
-            entries = _extensions.ToArray();
+            switch (_state)
+            {
+                case HostState.Initialized:
+                    return;
+                case HostState.Registering:
+                    _state = HostState.Initializing;
+                    entries = _extensions.ToArray();
+                    break;
+                case HostState.Initializing:
+                    throw new InvalidOperationException("Launcher extension initialization is already in progress.");
+                case HostState.ShuttingDown:
+                case HostState.Shutdown:
+                    throw new InvalidOperationException("Launcher extension host has already begun shutting down.");
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         foreach (var entry in entries)
@@ -92,6 +99,11 @@ public sealed class LauncherExtensionHost
                 Log.Error(exception, "Launcher extension {ExtensionId} failed to initialize", entry.Extension.Id);
             }
         }
+
+        lock (_lock)
+        {
+            _state = HostState.Initialized;
+        }
     }
 
     /// <summary>
@@ -103,14 +115,27 @@ public sealed class LauncherExtensionHost
 
         lock (_lock)
         {
-            if (_shutdown)
-                return;
-
-            _shutdown = true;
-            entries = _extensions
-                .Where(entry => entry.State == LauncherExtensionState.Initialized)
-                .Reverse()
-                .ToArray();
+            switch (_state)
+            {
+                case HostState.Shutdown:
+                case HostState.ShuttingDown:
+                    return;
+                case HostState.Registering:
+                    _state = HostState.Shutdown;
+                    return;
+                case HostState.Initializing:
+                    throw new InvalidOperationException(
+                        "Launcher extensions cannot be shut down while initialization is in progress.");
+                case HostState.Initialized:
+                    _state = HostState.ShuttingDown;
+                    entries = _extensions
+                        .Where(entry => entry.State == LauncherExtensionState.Initialized)
+                        .Reverse()
+                        .ToArray();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         foreach (var entry in entries)
@@ -126,6 +151,11 @@ public sealed class LauncherExtensionHost
                 UpdateEntry(entry, LauncherExtensionState.ShutdownFailed, exception);
                 Log.Error(exception, "Launcher extension {ExtensionId} failed to shut down", entry.Extension.Id);
             }
+        }
+
+        lock (_lock)
+        {
+            _state = HostState.Shutdown;
         }
     }
 
@@ -151,5 +181,14 @@ public sealed class LauncherExtensionHost
         {
             return new LauncherExtensionInfo(Extension.Id, State, Error);
         }
+    }
+
+    private enum HostState
+    {
+        Registering,
+        Initializing,
+        Initialized,
+        ShuttingDown,
+        Shutdown
     }
 }
