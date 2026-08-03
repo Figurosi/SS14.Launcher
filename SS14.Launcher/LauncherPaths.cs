@@ -14,6 +14,8 @@ public static class LauncherPaths
     public static readonly string EngineModulesDirName = "modules";
     public static readonly string ServerContentDirName = "server content";
     public static readonly string LogsDirName = "logs";
+    public static readonly string MarseyDirName = "marsey";
+    public static readonly string MarseyModsDirName = "mods";
     public static readonly string LauncherLogName = "launcher-.log"; // Serilog will append yyyyMMdd to the filename
     public static readonly string ClientMacLogName = "client.mac.log";
     public static readonly string ClientStdoutLogName = "client.stdout.log";
@@ -27,6 +29,8 @@ public static class LauncherPaths
     // Legacy server content directory. No longer used except to delete on launch.
     public static readonly string DirServerContent = Path.Combine(DirUserData, ServerContentDirName);
     public static readonly string DirLogs = Path.Combine(DirUserData, LogsDirName);
+    public static readonly string DirMarsey = Path.Combine(DirUserData, MarseyDirName);
+    public static readonly string DirMarseyMods = Path.Combine(DirMarsey, MarseyModsDirName);
     public static readonly string PathLauncherLog = Path.Combine(DirLogs, LauncherLogName);
     public static readonly string PathClientMacLog = Path.Combine(DirLogs, ClientMacLogName);
     public static readonly string PathClientStdoutLog = Path.Combine(DirLogs, ClientStdoutLogName);
@@ -41,6 +45,7 @@ public static class LauncherPaths
         Ensure(DirLocalData);
         Ensure(DirEngineInstallations);
         Ensure(DirModuleInstallations);
+        Ensure(DirMarseyMods);
 
         static void Ensure(string path) => Helpers.EnsureDirectoryExists(path);
     }
