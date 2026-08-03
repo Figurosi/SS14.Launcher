@@ -19,6 +19,7 @@ public sealed class MarseyManifestReaderTests
         var result = Read(
             """
             {
+              "$schema": "https://raw.githubusercontent.com/Figurosi/SS14.Launcher/master/Documentation/marsey.schema.json",
               "id": "community.example-mod",
               "name": "Example Mod",
               "version": "1.2.3",
@@ -122,6 +123,25 @@ public sealed class MarseyManifestReaderTests
               "entryAssembly": "ExampleMod.dll",
               "entryType": "ExampleMod.EntryPoint",
               "loadPhase": 1
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsUnknownFields()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "entryTypo": "should-not-be-ignored"
             }
             """);
 
