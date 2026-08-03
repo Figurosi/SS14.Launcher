@@ -25,6 +25,7 @@ public sealed class MarseyManifestReader
         AllowTrailingCommas = true,
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
 
@@ -286,6 +287,9 @@ public sealed class MarseyManifestReader
 
     private sealed class ManifestDocument
     {
+        [JsonPropertyName("$schema")]
+        public string? Schema { get; init; }
+
         public string? Id { get; init; }
         public string? Name { get; init; }
         public string? Version { get; init; }
