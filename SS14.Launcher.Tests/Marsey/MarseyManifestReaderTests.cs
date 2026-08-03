@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Marsey.Core.Compatibility;
 using Marsey.Core.Manifests;
@@ -54,8 +55,7 @@ public sealed class MarseyManifestReaderTests
         Assert.Multiple(() =>
         {
             Assert.That(result.IsValid, Is.False);
-            Assert.That(result.Issues, Has.Some.Matches<MarseyManifestIssue>(
-                issue => issue.Code == "invalid-entry-assembly-path"));
+            Assert.That(result.Issues.Any(issue => issue.Code == "invalid-entry-assembly-path"), Is.True);
         });
     }
 
@@ -76,8 +76,7 @@ public sealed class MarseyManifestReaderTests
             }
             """);
 
-        Assert.That(result.Issues, Has.Some.Matches<MarseyManifestIssue>(
-            issue => issue.Code == "invalid-launcher-range"));
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-launcher-range"), Is.True);
     }
 
     [Test]
@@ -97,8 +96,7 @@ public sealed class MarseyManifestReaderTests
             }
             """);
 
-        Assert.That(result.Issues, Has.Some.Matches<MarseyManifestIssue>(
-            issue => issue.Code == "dependency-conflict-overlap"));
+        Assert.That(result.Issues.Any(issue => issue.Code == "dependency-conflict-overlap"), Is.True);
     }
 
     [TestCase(1, "0.39.1", MarseyCompatibilityStatus.Compatible)]
