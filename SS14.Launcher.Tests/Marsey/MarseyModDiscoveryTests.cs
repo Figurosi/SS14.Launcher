@@ -89,6 +89,41 @@ public sealed class MarseyModDiscoveryTests
         });
     }
 
+    [Test]
+    public void RejectsSymbolicLinkRoot()
+    {
+        var target = Path.Combine(_root, "target");
+        var link = Path.Combine(_root, "root-link");
+        Directory.CreateDirectory(target);
+
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+        }
+        catch (Exception exception) when (
+            exception is PlatformNotSupportedException or UnauthorizedAccessException or IOException)
+        {
+            Assert.Ignore($"Symbolic links are unavailable in this test environment: {exception.Message}");
+            return;
+        }
+
+        try
+        {
+            var result = new MarseyModDiscovery().Discover(link);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Mods, Is.Empty);
+                Assert.That(result.Issues.Any(issue => issue.Code == "mod-root-reparse-point"), Is.True);
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(link))
+                Directory.Delete(link);
+        }
+    }
+
     private void CreateMod(string directoryName, string id)
     {
         var directory = Path.Combine(_root, directoryName);
