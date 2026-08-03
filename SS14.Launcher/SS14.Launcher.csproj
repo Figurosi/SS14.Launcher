@@ -91,5 +91,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marsey.LauncherIntegration\Marsey.LauncherIntegration.csproj" />
+    <ProjectReference Include="..\SS14.Launcher.Extensibility\SS14.Launcher.Extensibility.csproj" />
+  </ItemGroup>
   <Import Project="..\MSBuild\Robust.Trimming.targets" />
 </Project>
