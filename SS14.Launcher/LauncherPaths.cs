@@ -45,7 +45,6 @@ public static class LauncherPaths
         Ensure(DirLocalData);
         Ensure(DirEngineInstallations);
         Ensure(DirModuleInstallations);
-        Ensure(DirMarseyMods);
 
         static void Ensure(string path) => Helpers.EnsureDirectoryExists(path);
     }
