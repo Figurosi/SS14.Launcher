@@ -14,6 +14,8 @@ namespace Marsey.Core.Manifests;
 /// </summary>
 public sealed class MarseyManifestReader
 {
+    public const int MaximumManifestBytes = 256 * 1024;
+
     private static readonly Regex IdentifierPattern = new(
         "^[a-z0-9][a-z0-9._-]{2,127}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -23,17 +25,25 @@ public sealed class MarseyManifestReader
         AllowTrailingCommas = true,
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
 
     public MarseyManifestReadResult Read(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
+        using var boundedData = ReadBounded(stream);
+        if (boundedData is null)
+        {
+            return Invalid(
+                "manifest-too-large",
+                $"The manifest exceeds the {MaximumManifestBytes}-byte size limit.");
+        }
+
         ManifestDocument? document;
         try
         {
-            document = JsonSerializer.Deserialize<ManifestDocument>(stream, SerializerOptions);
+            document = JsonSerializer.Deserialize<ManifestDocument>(boundedData, SerializerOptions);
         }
         catch (JsonException exception)
         {
@@ -113,6 +123,35 @@ public sealed class MarseyManifestReader
         return new MarseyManifestReadResult(manifest, Array.Empty<MarseyManifestIssue>());
     }
 
+    private static MemoryStream? ReadBounded(Stream stream)
+    {
+        if (stream.CanSeek && stream.Length - stream.Position > MaximumManifestBytes)
+            return null;
+
+        var data = new MemoryStream();
+        var buffer = new byte[8192];
+        var total = 0;
+
+        while (true)
+        {
+            var read = stream.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+                break;
+
+            total += read;
+            if (total > MaximumManifestBytes)
+            {
+                data.Dispose();
+                return null;
+            }
+
+            data.Write(buffer, 0, read);
+        }
+
+        data.Position = 0;
+        return data;
+    }
+
     private static void ValidateIdentifier(
         string? value,
         string field,
@@ -149,6 +188,13 @@ public sealed class MarseyManifestReader
             issues.Add(new MarseyManifestIssue(
                 "field-too-long",
                 $"{field} cannot exceed {maximumLength} characters."));
+        }
+
+        if (value.Any(char.IsControl))
+        {
+            issues.Add(new MarseyManifestIssue(
+                "control-character",
+                $"{field} cannot contain control characters."));
         }
     }
 
