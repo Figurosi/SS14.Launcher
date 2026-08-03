@@ -1,0 +1,283 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using Marsey.Core.Compatibility;
+using Marsey.Core.Manifests;
+using NUnit.Framework;
+
+namespace SS14.Launcher.Tests.Marsey;
+
+[TestFixture]
+public sealed class MarseyManifestReaderTests
+{
+    private readonly MarseyManifestReader _reader = new();
+
+    [Test]
+    public void ReadsValidManifest()
+    {
+        var result = Read(
+            """
+            {
+              "$schema": "https://raw.githubusercontent.com/Figurosi/SS14.Launcher/master/Documentation/marsey.schema.json",
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.2.3",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "minimumLauncherVersion": "0.39.1",
+              "maximumLauncherVersionExclusive": "0.40.0",
+              "loadPhase": "AfterContentAssemblies",
+              "dependencies": ["community.library"],
+              "conflicts": ["community.legacy-mod"]
+            }
+            """);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsValid, Is.True);
+            Assert.That(result.Manifest, Is.Not.Null);
+            Assert.That(result.Manifest!.Id, Is.EqualTo("community.example-mod"));
+            Assert.That(result.Manifest.Version, Is.EqualTo(new Version(1, 2, 3)));
+            Assert.That(result.Manifest.EntryAssembly, Is.EqualTo("ExampleMod.dll"));
+            Assert.That(result.Manifest.LoadPhase, Is.EqualTo(MarseyLoadPhase.AfterContentAssemblies));
+        });
+    }
+
+    [TestCase("../ExampleMod.dll")]
+    [TestCase("folder/ExampleMod.dll")]
+    [TestCase("folder\\ExampleMod.dll")]
+    [TestCase("C:\\ExampleMod.dll")]
+    public void RejectsEntryAssemblyPaths(string entryAssembly)
+    {
+        var result = Read(CreateManifest(entryAssembly));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsValid, Is.False);
+            Assert.That(result.Issues.Any(issue => issue.Code == "invalid-entry-assembly-path"), Is.True);
+        });
+    }
+
+    [Test]
+    public void RejectsInvalidLauncherRange()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "minimumLauncherVersion": "0.40.0",
+              "maximumLauncherVersionExclusive": "0.39.1"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-launcher-range"), Is.True);
+    }
+
+    [Test]
+    public void RejectsDependencyConflictOverlap()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "dependencies": ["community.shared"],
+              "conflicts": ["community.shared"]
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "dependency-conflict-overlap"), Is.True);
+    }
+
+    [Test]
+    public void RejectsOversizedManifest()
+    {
+        using var stream = new MemoryStream(new byte[MarseyManifestReader.MaximumManifestBytes + 1]);
+
+        var result = _reader.Read(stream);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "manifest-too-large"), Is.True);
+    }
+
+    [Test]
+    public void RejectsNumericLoadPhase()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "loadPhase": 1
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsUnknownFields()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "entryTypo": "should-not-be-ignored"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsIncorrectPropertyCasing()
+    {
+        var result = Read(
+            """
+            {
+              "Id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json"), Is.True);
+    }
+
+    [Test]
+    public void RejectsDuplicateProperties()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.first-mod",
+              "id": "community.second-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "duplicate-property"), Is.True);
+    }
+
+    [Test]
+    public void RejectsNonObjectRoot()
+    {
+        var result = Read("[]");
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "invalid-json-root"), Is.True);
+    }
+
+    [Test]
+    public void ReportsMissingApiVersion()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(
+            result.Issues.Any(issue => issue.Code == "missing-field" && issue.Message == "apiVersion is required."),
+            Is.True);
+    }
+
+    [Test]
+    public void RejectsControlCharactersInDisplayText()
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Bad\u0001Name",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint"
+            }
+            """);
+
+        Assert.That(result.Issues.Any(issue => issue.Code == "control-character"), Is.True);
+    }
+
+    [TestCase(1, "0.39.1", MarseyCompatibilityStatus.Compatible)]
+    [TestCase(2, "0.39.1", MarseyCompatibilityStatus.UnsupportedApiVersion)]
+    [TestCase(1, "0.39.0", MarseyCompatibilityStatus.LauncherTooOld)]
+    [TestCase(1, "0.40.0", MarseyCompatibilityStatus.LauncherTooNew)]
+    public void EvaluatesLauncherCompatibility(
+        int supportedApiVersion,
+        string launcherVersion,
+        MarseyCompatibilityStatus expectedStatus)
+    {
+        var result = Read(
+            """
+            {
+              "id": "community.example-mod",
+              "name": "Example Mod",
+              "version": "1.0.0",
+              "apiVersion": 1,
+              "entryAssembly": "ExampleMod.dll",
+              "entryType": "ExampleMod.EntryPoint",
+              "minimumLauncherVersion": "0.39.1",
+              "maximumLauncherVersionExclusive": "0.40.0"
+            }
+            """);
+
+        var compatibility = new MarseyCompatibilityEvaluator().Evaluate(
+            result.Manifest!,
+            supportedApiVersion,
+            Version.Parse(launcherVersion));
+
+        Assert.That(compatibility.Status, Is.EqualTo(expectedStatus));
+    }
+
+    private MarseyManifestReadResult Read(string json)
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        return _reader.Read(stream);
+    }
+
+    private static string CreateManifest(string entryAssembly)
+    {
+        return $$"""
+                 {
+                   "id": "community.example-mod",
+                   "name": "Example Mod",
+                   "version": "1.0.0",
+                   "apiVersion": 1,
+                   "entryAssembly": "{{entryAssembly.Replace("\\", "\\\\")}}",
+                   "entryType": "ExampleMod.EntryPoint"
+                 }
+                 """;
+    }
+}

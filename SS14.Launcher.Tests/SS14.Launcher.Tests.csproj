@@ -13,6 +13,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Marsey.Core\Marsey.Core.csproj"/>
+    <ProjectReference Include="..\Marsey.LauncherIntegration\Marsey.LauncherIntegration.csproj"/>
+    <ProjectReference Include="..\SS14.Launcher.Extensibility\SS14.Launcher.Extensibility.csproj"/>
     <ProjectReference Include="..\SS14.Launcher\SS14.Launcher.csproj"/>
   </ItemGroup>
 

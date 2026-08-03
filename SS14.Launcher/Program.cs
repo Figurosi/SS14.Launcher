@@ -9,11 +9,13 @@ using System.Text;
 using Avalonia;
 using Avalonia.Logging;
 using Avalonia.Media;
+using Marsey.LauncherIntegration;
 using Microsoft.Win32;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
 using Splat;
 using SS14.Launcher.Api;
+using SS14.Launcher.Extensibility;
 using SS14.Launcher.Localization;
 using SS14.Launcher.Models;
 using SS14.Launcher.Models.ContentManagement;
@@ -210,6 +212,11 @@ internal static class Program
     private static AppBuilder BuildAvaloniaApp(DataManager cfg)
     {
         var locator = Locator.CurrentMutable;
+        var extensionHost = new LauncherExtensionHost();
+        extensionHost.Register(new MarseyLauncherExtension(
+            LauncherPaths.DirMarseyMods,
+            LauncherVersion.Version ?? new Version(0, 0)));
+        locator.RegisterConstant(extensionHost);
 
         var http = HappyEyeballsHttp.CreateHttpClient();
         http.DefaultRequestHeaders.UserAgent.Add(

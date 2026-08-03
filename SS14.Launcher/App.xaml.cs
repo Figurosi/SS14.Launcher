@@ -11,6 +11,7 @@ using Avalonia.Platform;
 using JetBrains.Annotations;
 using Serilog;
 using Splat;
+using SS14.Launcher.Extensibility;
 using SS14.Launcher.Localization;
 using SS14.Launcher.Models;
 using SS14.Launcher.Models.ContentManagement;
@@ -127,11 +128,13 @@ public class App : Application
         var contentManager = Locator.Current.GetRequiredService<ContentManager>();
         var overrideAssets = Locator.Current.GetRequiredService<OverrideAssetsManager>();
         var launcherInfo = Locator.Current.GetRequiredService<LauncherInfoManager>();
+        var extensionHost = Locator.Current.GetRequiredService<LauncherExtensionHost>();
 
         loc.Initialize();
         launcherInfo.Initialize();
         contentManager.Initialize();
         overrideAssets.Initialize();
+        extensionHost.InitializeAll();
 
         var viewModel = new MainWindowViewModel();
         var window = new MainWindow
@@ -165,7 +168,10 @@ public class App : Application
 
     private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
+        var extensionHost = Locator.Current.GetRequiredService<LauncherExtensionHost>();
         var msgr = Locator.Current.GetRequiredService<LauncherMessaging>();
+
+        extensionHost.ShutdownAll();
         msgr.StopAndWait();
     }
 }
