@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Launcher.props" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Marsey.Core\Marsey.Core.csproj" />
+    <ProjectReference Include="..\SS14.Launcher.Extensibility\SS14.Launcher.Extensibility.csproj" />
+  </ItemGroup>
+</Project>
